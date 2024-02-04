@@ -5,23 +5,34 @@ from urllib.request import Request, urlopen
 from google_play_scraper.exceptions import ExtraHTTPError, NotFoundError
 
 
-def _urlopen(obj):
+
+import aiohttp
+
+
+async def handle_resp(resp):
     try:
-        resp = urlopen(obj)
-    except HTTPError as e:
-        if e.code == 404:
+        resp.raise_for_status()
+        return await resp.text()
+    except aiohttp.ClientResponseError as x:
+        if x.status == 404:
             raise NotFoundError("App not found(404).")
         else:
             raise ExtraHTTPError(
-                "App not found. Status code {} returned.".format(e.code)
+                "App not found. Status code {} returned.".format(x.status)
             )
 
-    return resp.read().decode("UTF-8")
+
+async def post(url, data, headers):
+    # type: (str, Union[str, bytes], dict) -> str
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=data, headers=headers) as resp:
+            # resp.text()
+            return await handle_resp(resp)
+
+    # return _urlopen(Request(url, data=data, headers=headers))
 
 
-def post(url: str, data: Union[str, bytes], headers: dict) -> str:
-    return _urlopen(Request(url, data=data, headers=headers))
-
-
-def get(url: str) -> str:
-    return _urlopen(url)
+async def get(url: str) -> str:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            return await handle_resp(resp)
